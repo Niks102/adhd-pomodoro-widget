@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ADHD Pomodoro Timer — Notion Embed (Auto-Extend)</title>
+<style>
+:root {
+  --blue:#4A90E2;--green:#16a34a;--orange:#F97316;--red:#DC2626;
+  --bg:#0b1222;--panel:#0f172a;--muted:#94a3b8;--text:#e5e7eb;--ring:#93c5fd;
+}
+*{box-sizing:border-box}html,body{height:100%}
+body{margin:0;font-family:Inter,system-ui,Roboto,sans-serif;background:linear-gradient(180deg,#0b1222,#0f172a);color:var(--text);display:flex;justify-content:center}
+.wrap{max-width:920px;width:100%;padding:16px}
+.card{background:var(--panel);border:1px solid #1f2937;border-radius:18px;padding:16px;box-shadow:0 6px 20px rgba(0,0,0,.4);margin-bottom:16px}
+button{cursor:pointer;border:none;border-radius:999px;background:#1f2937;color:#fff;padding:12px 18px;font-weight:600;font-size:15px;margin:4px;transition:transform .08s ease}
+button:active{transform:scale(.95)}
+.primary{background:var(--blue)}.ghost{background:#0b1222;border:1px solid #273449}.danger{background:var(--red)}
+h2{margin:0 0 10px;font-size:18px}
+.timer{display:grid;place-items:center}
+.circle{position:relative;width:min(70vh,420px);max-width:100%;aspect-ratio:1/1}
+.svg{transform:rotate(-90deg)}
+.track{stroke:#1f2937}
+.progress{transition:stroke .25s ease}
+.center{position:absolute;inset:0;display:grid;place-items:center;text-align:center}
+.time{font-variant-numeric:tabular-nums;font-weight:800;font-size:clamp(44px,9vw,76px)}
+.ends{margin-top:4px;color:var(--muted);font-size:14px}
+.one-min{position:absolute;top:8px;left:50%;transform:translateX(-50%);background:rgba(220,38,38,.15);border:1px solid rgba(220,38,38,.5);color:#fecaca;padding:4px 10px;border-radius:999px;font-size:12px;display:none}
+.controls{display:flex;flex-wrap:wrap;justify-content:center;margin-top:10px}
+.tasks .top{display:flex;gap:6px}
+input[type=text],input[type=number],input[type=range]{background:#0b1222;border:1px solid #273449;color:var(--text);padding:10px;border-radius:10px;width:100%}
+.list{display:grid;gap:8px;margin-top:8px}
+.item{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;background:#0b1222;border:1px solid #1f2937;padding:8px;border-radius:10px}
+.check{appearance:none;width:20px;height:20px;border-radius:6px;border:2px solid #334155}
+.check:checked{background:#22c55e;border-color:#22c55e}
+.task-text.completed{text-decoration:line-through;color:#9ca3af}
+.modal{position:fixed;inset:0;background:rgba(2,6,23,.6);display:none;align-items:center;justify-content:center;padding:16px}
+.modal.open{display:flex}
+.sheet{background:#0b1222;border:1px solid #1f2937;border-radius:16px;max-width:480px;width:100%;padding:16px}
+.hint{font-size:12px;color:#94a3b8;margin-top:6px;text-align:center}
+.overtime{color:#fde68a}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <section class="card" id="timerCard">
+    <h2>ADHD Pomodoro <span id="phaseBadge" style="font-size:12px;background:#e5e7eb;color:#0b1222;padding:2px 8px;border-radius:999px">WORK</span></h2>
+    <div class="one-min" id="oneMinBanner">1 minute left</div>
+    <div class="timer" id="timerWrap">
+      <div class="circle">
+        <svg class="svg" width="100%" height="100%" viewBox="0 0 200 200">
+          <circle class="track" cx="100" cy="100" r="88" fill="none" stroke-width="10"/>
+          <circle class="progress" id="progress" cx="100" cy="100" r="88" fill="none" stroke="var(--blue)" stroke-linecap="round" stroke-width="10" stroke-dasharray="552" stroke-dashoffset="552"/>
+        </svg>
+        <div class="center">
+          <div class="time" id="time">25:00</div>
+          <div class="ends" id="endsAt">Work ends at --:--</div>
+        </div>
+      </div>
+    </div>
+    <div class="controls">
+      <button id="startPauseBtn" class="primary">Start</button>
+      <button id="resetBtn" class="ghost">Reset</button>
+      <button id="skipBtn" class="ghost">Skip</button>
+    </div>
+  </section>
+
+  <section class="card tasks">
+    <h2>Tasks (max 5)</h2>
+    <div class="top">
+      <input id="taskInput" type="text" placeholder="What are you working on?">
+      <button id="addTaskBtn">＋</button>
+    </div>
+    <div id="taskList" class="list"></div>
+    <div class="hint" id="taskHint">Pro tip: keep tasks short & concrete.</div>
+  </section>
+</div>
+
+<!-- Complete Modal -->
+<div class="modal" id="completeModal">
+  <div class="sheet">
+    <h3>Work session complete 🎉</h3>
+    <p>Start break or continue?</p>
+    <button id="startBreakBtn" class="primary">Start Break</button>
+    <button id="extendBtn" class="ghost">Extend Focus</button>
+    <div class="hint">If you don't click Start Break within 30 seconds, focus continues automatically.</div>
+  </div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+const els={time:$('#time'),progress:$('#progress'),phaseBadge:$('#phaseBadge'),
+  startPauseBtn:$('#startPauseBtn'),resetBtn:$('#resetBtn'),skipBtn:$('#skipBtn'),
+  oneMinBanner:$('#oneMinBanner'),taskInput:$('#taskInput'),addTaskBtn:$('#addTaskBtn'),taskList:$('#taskList'),
+  completeModal:$('#completeModal'),startBreakBtn:$('#startBreakBtn'),extendBtn:$('#extendBtn'),endsAt:$('#endsAt')};
+
+let state={phase:'work',elapsed:0,isRunning:false,workDuration:1500,breakDuration:300,overtime:false};
+let tickInterval=null;let lastTick=Date.now();let breakTimeout=null;let tasks=[];
+
+function fmt(sec){const neg=sec<0;sec=Math.abs(sec);const m=Math.floor(sec/60).toString().padStart(2,'0');const s=(sec%60).toString().padStart(2,'0');return(neg?'+':'')+`${m}:${s}`;}
+function currentDuration(){return state.phase==='work'?state.workDuration:state.breakDuration;}
+function endsAtText(){if(state.overtime)return'In overtime — pause when ready';const end=new Date(Date.now()+(currentDuration()-state.elapsed)*1000);return`${state.phase==='work'?'Work':'Break'} ends at ${end.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}`;}
+function render(){const total=currentDuration();const rem=state.overtime?-(state.elapsed-total):(total-state.elapsed);
+  els.time.textContent=fmt(rem);els.time.classList.toggle('overtime',state.overtime);
+  els.endsAt.textContent=endsAtText();
+  const pct=Math.max(0,Math.min(1,(total>0?(total-state.elapsed)/total:0)));const off=552*(1-pct);els.progress.style.strokeDashoffset=off;
+  els.progress.style.stroke=state.overtime?'var(--red)':(state.phase==='break'?'var(--green)':(rem<=60?'var(--red)':(rem<=300?'var(--orange)':'var(--blue)')));
+  els.oneMinBanner.style.display=(state.phase==='work'&&!state.overtime&&rem<=60)?'block':'none';
+  els.phaseBadge.textContent=state.phase.toUpperCase();}
+
+function tick(){if(!state.isRunning)return;const now=Date.now();const d=(now-lastTick)/1000;lastTick=now;state.elapsed+=d;if(state.elapsed>=currentDuration()&&!state.overtime){pause();completePhase();}render();}
+function start(){if(state.isRunning)return;state.isRunning=true;lastTick=Date.now();tickInterval=setInterval(tick,250);render();}
+function pause(){state.isRunning=false;clearInterval(tickInterval);tickInterval=null;render();}
+function reset(){pause();state.elapsed=0;state.overtime=false;render();}
+function skip(){pause();completePhase(true);}
+
+function completePhase(skipped){if(skipped){state.phase=state.phase==='work'?'break':'work';state.elapsed=0;state.overtime=false;render();return;}
+if(state.phase==='work'){openModal();armAutoExtend();}else{state.phase='work';state.elapsed=0;render();start();}}
+function openModal(){els.completeModal.classList.add('open');}
+function closeModal(){els.completeModal.classList.remove('open');clearTimeout(breakTimeout);}
+function armAutoExtend(){clearTimeout(breakTimeout);breakTimeout=setTimeout(()=>{console.log('Auto-extend focus: continuing indefinitely');state.phase='work';state.overtime=true;state.isRunning=true;lastTick=Date.now();tickInterval||setInterval(tick,250);closeModal();render();},30000);}
+
+els.startPauseBtn.onclick=()=>{state.isRunning?pause():start();};
+els.resetBtn.onclick=reset;els.skipBtn.onclick=skip;
+els.startBreakBtn.onclick=()=>{closeModal();state.phase='break';state.elapsed=0;state.overtime=false;render();start();};
+els.extendBtn.onclick=()=>{closeModal();state.overtime=true;start();};
+
+function addTask(){const val=els.taskInput.value.trim();if(!val)return;if(tasks.length>=5)return alert('Complete a task to add more.');tasks.push({id:Date.now(),text:val,done:false});els.taskInput.value='';renderTasks();}
+function renderTasks(){els.taskList.innerHTML='';tasks.forEach(t=>{const item=document.createElement('div');item.className='item';const cb=document.createElement('input');cb.type='checkbox';cb.className='check';cb.checked=t.done;cb.onchange=()=>{t.done=!t.done;renderTasks();};const txt=document.createElement('div');txt.textContent=t.text;txt.className='task-text'+(t.done?' completed':'');const del=document.createElement('button');del.textContent='×';del.onclick=()=>{tasks=tasks.filter(x=>x.id!==t.id);renderTasks();};item.append(cb,txt,del);els.taskList.appendChild(item);});}
+els.addTaskBtn.onclick=addTask;els.taskInput.onkeydown=e=>{if(e.key==='Enter')addTask();};
+
+function init(){render();renderTasks();}
+init();
+</script>
+</body>
+</html>
